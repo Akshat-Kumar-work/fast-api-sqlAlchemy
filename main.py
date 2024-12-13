@@ -1,10 +1,11 @@
-from fastapi import FastAPI,status
+from fastapi import FastAPI,status , Depends
 from pydantic   import BaseModel
-from database import SessionLocal
+from database import get_db
 import models
+from sqlalchemy.orm import Session
 
 app = FastAPI()
-db = SessionLocal()
+
 
 #to avoid serealized response error
 class OurBaseModel(BaseModel):
@@ -18,13 +19,13 @@ class Person(OurBaseModel):
     
 
 @app.get('/',response_model=list[Person],status_code=status.HTTP_200_OK)
-def getAll_person():
+async def getAll_person(db: Session = Depends(get_db)):
     getAllPerson = db.query(models.Person).all()
     return getAllPerson
 
 
 @app.post('/addperson',response_model=Person,status_code=status.HTTP_201_CREATED)
-def add_person(person:Person):
+def add_person(person:Person,db: Session = Depends(get_db)):
     newPerson = models.Person(
         firstName = person.firstName,
         lastName = person.lastName,
