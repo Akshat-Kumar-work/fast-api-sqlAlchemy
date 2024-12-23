@@ -1,8 +1,10 @@
-from fastapi import FastAPI,status , Depends
+from fastapi import FastAPI,status , Depends,HTTPException,Body
 from pydantic   import BaseModel
 from database import get_db
 import models
 from sqlalchemy.orm import Session
+from jose import jwt
+from datetime import datetime,timezone,timedelta
 
 app = FastAPI()
 
@@ -10,31 +12,88 @@ app = FastAPI()
 #to avoid serealized response error
 class OurBaseModel(BaseModel):
     class Config:
-        orm_mode=True
+        #orm_mode=True
+        from_attributes = True  # Replace `orm_mode` with `from_attributes`
 
 class Person(OurBaseModel):
     firstName: str
     lastName: str
     isMale: bool
+    password:str
     
+class PersonLogin(OurBaseModel):
+    firstName:str
+    password:str
+    
+class PersonResponse(OurBaseModel):
+    firstName: str
+    lastName: str
+    isMale: bool
+    password:str|None
+    
+    
+SECRET_KEY="DFJKJ3J2039UR309JFIMFNOEIJF0293UR09U2134U09FJIF0932URJ2309"
+ALGORITHM='HS256'
 
-@app.get('/',response_model=list[Person],status_code=status.HTTP_200_OK)
+@app.get('/',response_model=list[PersonResponse],status_code=status.HTTP_200_OK)
 async def getAll_person(db: Session = Depends(get_db)):
     getAllPerson = db.query(models.Person).all()
     return getAllPerson
 
 
-@app.post('/addperson',response_model=Person,status_code=status.HTTP_201_CREATED)
-def add_person(person:Person,db: Session = Depends(get_db)):
+@app.post('/addperson',response_model=PersonResponse,status_code=status.HTTP_201_CREATED)
+async def add_person(person:Person,db: Session = Depends(get_db)):
     newPerson = models.Person(
         firstName = person.firstName,
         lastName = person.lastName,
-        isMale = person.isMale
+        isMale = person.isMale,
+        password = person.password
         )
     db.add(newPerson)
     db.commit()
     return newPerson
 
+def passwordAuthentication(username:str,password:str,db:Session=Depends(get_db)):
+    getPerson = db.query(models.Person).filter(models.Person.firstName == username).first()
+  
+    if getPerson.password != password:
+        raise HTTPException(status_code=401, detail="Incorrect password")
+    
+    return True
+        
+def create_jwt(firstName:str,gender:bool):
+    #after 1 hour
+    expirationTime = datetime.now(timezone.utc)+timedelta(hours=1)
+    #jwt payload
+    encode= {'sub':firstName,'gender':gender,"exp":expirationTime}
+    
+    token = jwt.encode(encode,SECRET_KEY,algorithm=ALGORITHM)
+    return token
+
+class loginResponse(OurBaseModel):
+     data: PersonResponse
+     token: str
+     
+
+@app.post('/login',response_model=loginResponse,status_code=status.HTTP_200_OK)
+async def login(person:PersonLogin=Body(),db:Session=Depends(get_db)):
+    getPerson = db.query(models.Person).filter(models.Person.firstName == person.firstName).first()
+    
+    if not getPerson:
+        raise HTTPException(status_code=400,detail="Person not found")
+    
+    if not passwordAuthentication(getPerson.firstName,person.password,db):
+        raise HTTPException(status_code=400, detail="Invalid credentials")
+    
+    jwtToken = create_jwt(getPerson.firstName,getPerson.isMale)
+    
+     # Return user data with the token
+    return {
+        "data":getPerson,
+        "token":jwtToken
+    }
+    
+    
 
 # @app.get('/',status_code=200)
 # def getCar_info():
@@ -49,4 +108,3 @@ def add_person(person:Person,db: Session = Depends(get_db)):
 # @app.post('/addPersonInfo',status_code=200)
 # def addPerson_info(person:Person):
 #     return (person)
-
