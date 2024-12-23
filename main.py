@@ -5,6 +5,7 @@ import models
 from sqlalchemy.orm import Session
 from jose import jwt
 from datetime import datetime,timezone,timedelta
+from fastapi.security import OAuth2PasswordBearer
 
 app = FastAPI()
 
@@ -93,6 +94,28 @@ async def login(person:PersonLogin=Body(),db:Session=Depends(get_db)):
         "token":jwtToken
     }
     
+# OAuth2PasswordBearer provides a Bearer token from the `Authorization` header
+getTokenFromHeader = OAuth2PasswordBearer(tokenUrl="token")
+
+def verify_jwt(token: str = Depends(getTokenFromHeader)):
+     try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        return payload  # Returns the decoded payload if valid
+     except :
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+    
+
+#get paritcular person by jwt
+@app.get('/getperson',status_code=status.HTTP_200_OK)
+async def get_person(data=Depends(verify_jwt),db:Session=Depends(get_db)):
+    personDAta= db.query(models.Person).filter(models.Person.firstName==data['sub']).first()
+    
+    if not personDAta:
+        raise HTTPException(status_code=401,detail="you are not valid user")
+    
+    return data
+     
     
 
 # @app.get('/',status_code=200)
