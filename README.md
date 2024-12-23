@@ -47,6 +47,21 @@ alembic init alembic
 # Install
 pip install psycopg2
 
+# to migrate schema
+alembic revision --autogenerate -m "you message"
+
+# check latest migration
+alembic heads
+
+# to apply schema changes to db
+alembic upgrade head
+
+# to load env
+. .\load_env.sh
+or
+. ./load_env.sh
+
+
 
 
 
