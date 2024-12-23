@@ -6,10 +6,11 @@ from sqlalchemy.orm import Session
 from jose import jwt
 from datetime import datetime,timezone,timedelta
 from fastapi.security import OAuth2PasswordBearer
+from router.login import routerExample
 
 app = FastAPI()
 
-
+app.include_router(routerExample)
 #to avoid serealized response error
 class OurBaseModel(BaseModel):
     class Config:
